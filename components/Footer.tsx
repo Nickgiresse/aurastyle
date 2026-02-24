@@ -61,7 +61,7 @@ const footerColumns = [
         </p>
         <p>Bafoussam, Cameroon</p>
         <a
-          href="https://wa.me/33000000000"
+          href="https://wa.me/690021434"
           target="_blank"
           rel="noopener noreferrer"
           className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#20bd5a]"

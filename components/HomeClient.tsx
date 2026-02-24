@@ -3,31 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
-import CategoryCard from "@/components/CategoryCard";
+import CategoryCarousel from "@/components/CategoryCarousel";
 import AnimateOnScroll from "@/components/AnimateOnScroll";
 import AnimateStagger from "@/components/AnimateStagger";
 import { api, type Product } from "@/lib/api";
-
-const heroCategories = [
-  {
-    name: "Vêtements",
-    image: "https://picsum.photos/400/500?random=10",
-    description: "Pièces intemporelles",
-    href: "/boutique?category=Vêtements",
-  },
-  {
-    name: "Accessoires",
-    image: "https://picsum.photos/400/500?random=11",
-    description: "Sublimez votre look",
-    href: "/boutique?category=Accessoires",
-  },
-  {
-    name: "Bracelets",
-    image: "https://picsum.photos/400/500?random=12",
-    description: "Élégance discrète",
-    href: "/boutique?category=Bracelets",
-  },
-];
 
 function PopularProductsFallback() {
   return (
@@ -102,44 +81,8 @@ export default function HomeClient() {
         </div>
       </section>
 
-      {/* Nos Catégories */}
-      <section id="categories" className="mx-auto max-w-7xl px-4 py-16 lg:px-8">
-        <AnimateOnScroll direction="up">
-          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-2xl font-bold text-[#111]">Nos Catégories</h2>
-              <p className="mt-1 text-gray-600">
-                Explorez nos univers soigneusement sélectionnés.
-              </p>
-            </div>
-            <Link
-              href="/boutique"
-              className="flex items-center gap-1 text-[#00BCD4] transition-colors hover:text-[#00acc1]"
-            >
-              Tout voir
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
-        </AnimateOnScroll>
-        <AnimateStagger
-          className="mt-8 grid gap-6 sm:grid-cols-3"
-          staggerDelay={0.15}
-        >
-          {heroCategories.map((cat) => (
-            <CategoryCard key={cat.name} {...cat} />
-          ))}
-        </AnimateStagger>
-      </section>
+      {/* Nos Catégories — Carousel */}
+      <CategoryCarousel />
 
       {/* Produits Populaires */}
       <section className="mx-auto max-w-7xl px-4 py-16 lg:px-8">
