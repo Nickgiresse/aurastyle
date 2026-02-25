@@ -99,6 +99,8 @@ export default function AdminPage() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const [clearingAllOrders, setClearingAllOrders] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usersSearch, setUsersSearch] = useState("");
   const [usersFilter, setUsersFilter] = useState<"all" | "clients" | "admins">("all");
@@ -189,6 +191,28 @@ export default function AdminPage() {
     load();
   }, [authorized, router]);
 
+  const loadOrders = async () => {
+    const token = getTokenFromStorage();
+    if (!token) return;
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const [ordersRes, statsRes] = await Promise.all([
+        fetch(`${API_URL}/api/admin/orders`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const ordersData = await ordersRes.json();
+      const statsData = await statsRes.json();
+      setOrders(ordersData || []);
+      setStats((prev) => (prev ? { ...prev, totalOrders: statsData.totalOrders ?? 0, totalRevenue: statsData.totalRevenue ?? 0 } : statsData));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "orders") loadOrders();
+  }, [tab]);
+
   const getToken = getTokenFromStorage;
 
   const handleLogout = () => {
@@ -207,6 +231,71 @@ export default function AdminPage() {
       if (selectedOrder?._id === orderId) setSelectedOrder({ ...selectedOrder, status });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Erreur");
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string, orderTotal: number) => {
+    if (!confirm("Supprimer cette commande ? Le chiffre d'affaires sera mis à jour.")) return;
+    setDeletingOrderId(orderId);
+    try {
+      const token = getToken();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/admin/orders/${orderId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setOrders((prev) => prev.filter((o) => o._id !== orderId));
+        setStats((prev) =>
+          prev
+            ? {
+                ...prev,
+                totalOrders: (prev.totalOrders ?? 0) - 1,
+                totalRevenue: (prev.totalRevenue ?? 0) - orderTotal,
+              }
+            : prev
+        );
+        if (selectedOrder?._id === orderId) setSelectedOrder(null);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Erreur lors de la suppression");
+      }
+    } catch {
+      alert("Erreur lors de la suppression");
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
+  const handleClearAllOrders = async () => {
+    if (
+      !confirm(
+        "⚠️ Supprimer TOUTES les commandes ? Le CA sera remis à 0. Irréversible !"
+      )
+    )
+      return;
+    setClearingAllOrders(true);
+    try {
+      const token = getToken();
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/admin/orders/clear-all`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setOrders([]);
+        setStats((prev) =>
+          prev ? { ...prev, totalOrders: 0, totalRevenue: 0 } : prev
+        );
+        setSelectedOrder(null);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Erreur lors de la suppression");
+      }
+    } catch {
+      alert("Erreur lors de la suppression");
+    } finally {
+      setClearingAllOrders(false);
     }
   };
 
@@ -1169,59 +1258,188 @@ export default function AdminPage() {
 
         {tab === "orders" && (
           <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-[#111]">Commandes</h1>
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
-                    <th className="px-4 py-3">ID</th>
-                    <th className="px-4 py-3">Client</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Articles</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((o) => (
-                    <tr
-                      key={o._id}
-                      className="cursor-pointer border-b hover:bg-gray-50"
-                      onClick={() => setSelectedOrder(o)}
-                    >
-                      <td className="px-4 py-3">#{o._id.slice(-8)}</td>
-                      <td className="px-4 py-3">
-                        {(o.user as { email?: string })?.email || "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {new Date(o.createdAt).toLocaleDateString("fr-FR")}
-                      </td>
-                      <td className="px-4 py-3">{o.items?.length || 0}</td>
-                      <td className="px-4 py-3 font-medium">
-                        {formatPrice(o.total || 0)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={o.status}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            handleUpdateOrderStatus(o._id, e.target.value)
-                          }
-                          className={`rounded border-0 px-2 py-1 text-xs ${
-                            STATUS_COLORS[o.status] || "bg-gray-100"
-                          }`}
-                        >
-                          <option value="pending">pending</option>
-                          <option value="paid">paid</option>
-                          <option value="shipped">shipped</option>
-                          <option value="delivered">delivered</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Commandes</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Gérez et supprimez les commandes progressivement
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearAllOrders}
+                disabled={clearingAllOrders || orders.length === 0}
+                className="flex items-center gap-2 rounded-xl bg-red-500 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-red-600 disabled:opacity-40"
+              >
+                {clearingAllOrders ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  "🗑️"
+                )}
+                Vider toutes les commandes
+              </button>
             </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-2xl">
+                    📦
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Total commandes</p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {stats?.totalOrders ?? 0}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-2xl">
+                    💰
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Chiffre d&apos;affaires</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {new Intl.NumberFormat("fr-FR", {
+                        style: "currency",
+                        currency: "XAF",
+                        minimumFractionDigits: 0,
+                      }).format(stats?.totalRevenue ?? 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {orders.length === 0 ? (
+              <div className="rounded-2xl bg-white p-12 text-center shadow-sm">
+                <p className="mb-4 text-5xl">📭</p>
+                <p className="text-lg text-gray-500">Aucune commande</p>
+                <p className="mt-1 text-sm text-gray-400">
+                  Le chiffre d&apos;affaires est à 0 FCFA
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {orders.map((order) => (
+                  <div
+                    key={order._id}
+                    className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all duration-300 ${
+                      deletingOrderId === order._id ? "scale-95 opacity-50" : "opacity-100"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="rounded-lg bg-gray-50 px-2 py-1 font-mono text-xs text-gray-400">
+                            #{order._id.slice(-8).toUpperCase()}
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              order.status === "delivered"
+                                ? "bg-green-100 text-green-700"
+                                : order.status === "shipped"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : order.status === "paid"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {order.status === "delivered"
+                              ? "✅ Livré"
+                              : order.status === "shipped"
+                                ? "🚚 Expédié"
+                                : order.status === "paid"
+                                  ? "💳 Payé"
+                                  : "⏳ En attente"}
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-sm font-medium text-gray-700">
+                            👤 {(order.user as { firstName?: string })?.firstName || ""}{" "}
+                            {(order.user as { lastName?: string })?.lastName || "Client"}
+                            <span className="ml-2 font-normal text-gray-400">
+                              {(order.user as { email?: string })?.email}
+                            </span>
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            📦 {order.items?.length || 0} article(s) • 📅{" "}
+                            {new Date(order.createdAt).toLocaleDateString("fr-FR", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            📍 {order.shippingAddress?.city}, {order.shippingAddress?.country}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+                        <p className="text-xl font-bold text-gray-900">
+                          {new Intl.NumberFormat("fr-FR", {
+                            style: "currency",
+                            currency: "XAF",
+                            minimumFractionDigits: 0,
+                          }).format(order.total)}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={order.status}
+                            onChange={async (e) => {
+                              const token = getToken();
+                              const API_URL =
+                                process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+                              await fetch(
+                                `${API_URL}/api/admin/orders/${order._id}`,
+                                {
+                                  method: "PUT",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                  body: JSON.stringify({ status: e.target.value }),
+                                }
+                              );
+                              setOrders((prev) =>
+                                prev.map((o) =>
+                                  o._id === order._id
+                                    ? { ...o, status: e.target.value }
+                                    : o
+                                )
+                              );
+                            }}
+                            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-[#00BCD4]"
+                          >
+                            <option value="pending">⏳ En attente</option>
+                            <option value="paid">💳 Payé</option>
+                            <option value="shipped">🚚 Expédié</option>
+                            <option value="delivered">✅ Livré</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteOrder(order._id, order.total ?? 0)
+                            }
+                            disabled={deletingOrderId === order._id}
+                            className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-all hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {deletingOrderId === order._id ? (
+                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                            ) : (
+                              "🗑️"
+                            )}
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
