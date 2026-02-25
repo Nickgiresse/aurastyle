@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { resetCartStore } from "./cartStore";
 
 export interface AuthUser {
   id: string;
@@ -50,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
         };
 
         set({ user, token: data.token });
+        resetCartStore();
         return user;
       },
 
@@ -57,7 +59,10 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token });
       },
 
-      logout: () => set({ user: null, token: null }),
+      logout: () => {
+        set({ user: null, token: null });
+        resetCartStore();
+      },
     }),
     {
       name: "aura-auth",

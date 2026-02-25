@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { Product } from "@/lib/api";
 
 export interface CartItem {
@@ -7,6 +7,17 @@ export interface CartItem {
   quantity: number;
   size?: string;
 }
+
+const getCartKey = (): string => {
+  if (typeof window === "undefined") return "aura-cart-guest";
+  try {
+    const raw = localStorage.getItem("aura-auth");
+    const userId = JSON.parse(raw || "{}")?.state?.user?.id || "guest";
+    return `aura-cart-${userId}`;
+  } catch {
+    return "aura-cart-guest";
+  }
+};
 
 interface CartStore {
   items: CartItem[];
@@ -17,6 +28,18 @@ interface CartStore {
   total: number;
   itemCount: number;
 }
+
+const cartStorage = {
+  getItem: (name: string) => {
+    return localStorage.getItem(getCartKey());
+  },
+  setItem: (name: string, value: string) => {
+    localStorage.setItem(getCartKey(), value);
+  },
+  removeItem: (name: string) => {
+    localStorage.removeItem(getCartKey());
+  },
+};
 
 export const useCartStore = create<CartStore>()(
   persist(
@@ -96,6 +119,14 @@ export const useCartStore = create<CartStore>()(
 
       clearCart: () => set({ items: [], total: 0, itemCount: 0 }),
     }),
-    { name: "aura-cart" }
+    {
+      name: "aura-cart",
+      storage: createJSONStorage(() => cartStorage),
+    }
   )
 );
+
+export const resetCartStore = (): void => {
+  if (typeof window === "undefined") return;
+  useCartStore.persist.rehydrate();
+};

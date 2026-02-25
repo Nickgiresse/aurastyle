@@ -104,6 +104,7 @@ export default function AdminPage() {
   const [usersFilter, setUsersFilter] = useState<"all" | "clients" | "admins">("all");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userForm, setUserForm] = useState({
     firstName: "",
     lastName: "",
@@ -349,12 +350,12 @@ export default function AdminPage() {
     );
   }
 
-  const navItems: { id: AdminTab; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "categories", label: "Catégories" },
-    { id: "products", label: "Produits" },
-    { id: "orders", label: "Commandes" },
-    { id: "users", label: "👥 Utilisateurs" },
+  const navItems: { id: AdminTab; label: string; icon: string }[] = [
+    { id: "dashboard", label: "Dashboard", icon: "📊" },
+    { id: "products", label: "Produits", icon: "👕" },
+    { id: "categories", label: "Catégories", icon: "🏷️" },
+    { id: "orders", label: "Commandes", icon: "📦" },
+    { id: "users", label: "Utilisateurs", icon: "👥" },
   ];
 
   const filteredUsers = adminUsers.filter((u) => {
@@ -413,43 +414,96 @@ export default function AdminPage() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      <aside
+        className={`
+          fixed top-0 left-0 z-30 h-full w-64 transform bg-[#111] text-white
+          transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:relative lg:translate-x-0 lg:flex-shrink-0
+        `}
+      >
         <div className="flex h-full flex-col p-6">
-          <Link href="/">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="absolute right-4 top-4 text-white hover:text-gray-300 lg:hidden"
+          >
+            ✕
+          </button>
+          <Link href="/" className="block">
             <Image
               src="/logo.png"
               alt="Aura & Style"
-              width={120}
+              width={100}
               height={40}
-              className="h-10 w-auto object-contain"
+              className="object-contain brightness-0 invert"
             />
           </Link>
-          <p className="mt-1 text-xs font-medium uppercase tracking-wider text-gray-500">
-            Admin Panel
-          </p>
+          <p className="mt-1 text-xs text-gray-400">Dashboard Admin</p>
           <nav className="mt-8 space-y-1">
             {navItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setTab(item.id)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  tab === item.id ? "bg-[#00BCD4]/10 text-[#00BCD4]" : "text-gray-600 hover:bg-gray-100"
+                type="button"
+                onClick={() => {
+                  setTab(item.id);
+                  setSidebarOpen(false);
+                }}
+                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                  tab === item.id
+                    ? "bg-[#00BCD4] text-white"
+                    : "text-gray-400 hover:bg-white/10 hover:text-white"
                 }`}
               >
+                <span>{item.icon}</span>
                 {item.label}
               </button>
             ))}
           </nav>
-          <button
-            onClick={handleLogout}
-            className="mt-auto flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-          >
-            Déconnexion
-          </button>
+          <div className="mt-auto border-t border-white/10 pt-4">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-400 transition-all duration-200 hover:bg-red-500/10"
+            >
+              <span>🚪</span>
+              Déconnexion
+            </button>
+          </div>
         </div>
       </aside>
 
-      <div className="flex-1 overflow-auto p-8">
+      <main className="min-w-0 flex-1 overflow-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white p-4 shadow-sm lg:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="rounded-xl p-2 transition-colors hover:bg-gray-100"
+            aria-label="Ouvrir le menu"
+          >
+            <span className="block h-0.5 w-5 bg-gray-800 mb-1.5" />
+            <span className="block h-0.5 w-5 bg-gray-800 mb-1.5" />
+            <span className="block h-0.5 w-5 bg-gray-800" />
+          </button>
+          <Image
+            src="/logo.png"
+            alt="Aura & Style"
+            width={80}
+            height={32}
+            className="object-contain"
+          />
+          <div className="w-9" />
+        </div>
+
+      <div className="p-4 md:p-8">
         {tab === "dashboard" && (
           <div className="space-y-8">
             <h1 className="text-2xl font-bold text-[#111]">Dashboard</h1>
@@ -1482,6 +1536,8 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      </div>
+      </main>
     </div>
   );
 }

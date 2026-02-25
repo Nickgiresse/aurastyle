@@ -7,9 +7,11 @@ import ProductCard from "@/components/ProductCard";
 import AnimateOnScroll from "@/components/AnimateOnScroll";
 import AnimateStagger from "@/components/AnimateStagger";
 import { api, type Product } from "@/lib/api";
-import { categories, type Category } from "@/lib/data";
 
-const FILTER_CATEGORIES: (Category | "Tous")[] = ["Tous", ...categories];
+interface CategoryOption {
+  _id: string;
+  name: string;
+}
 
 const SORT_OPTIONS = [
   { value: "new", label: "Nouveautés" },
@@ -21,18 +23,37 @@ const ITEMS_PER_PAGE = 8;
 
 function BoutiqueContent() {
   const searchParams = useSearchParams();
-  const initialCat = searchParams.get("category") as Category | null;
+  const initialCatParam = searchParams.get("category") || "";
   const searchQuery = searchParams.get("q") || "";
 
-  const [category, setCategory] = useState<Category | "Tous">(
-    initialCat && FILTER_CATEGORIES.includes(initialCat) ? initialCat : "Tous"
-  );
+  const [categories, setCategories] = useState<CategoryOption[]>([
+    { _id: "tous", name: "Tous" },
+  ]);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [sort, setSort] = useState("new");
   const [page, setPage] = useState(1);
   const [products, setProducts] = useState<Product[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await api.getCategories();
+        setCategories([{ _id: "tous", name: "Tous" }, ...(data || [])]);
+      } catch {
+        setCategories([{ _id: "tous", name: "Tous" }]);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
+    if (initialCatParam && categories.some((c) => c._id === initialCatParam)) {
+      setSelectedCategory(initialCatParam === "tous" ? "" : initialCatParam);
+    }
+  }, [initialCatParam, categories]);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -46,12 +67,13 @@ function BoutiqueContent() {
           setProducts(searchResults);
           setTotalPages(1);
         } else {
-          const data = await api.getProducts({
-            category: category === "Tous" ? undefined : category,
-            sort: sort === "new" ? undefined : sort,
+          const params: { page: number; limit: number; category?: string; sort?: string } = {
             page,
             limit: ITEMS_PER_PAGE,
-          });
+          };
+          if (selectedCategory) params.category = selectedCategory;
+          if (sort !== "new") params.sort = sort;
+          const data = await api.getProducts(params);
           setProducts(data.products);
           setTotalPages(data.pages || 1);
         }
@@ -63,7 +85,7 @@ function BoutiqueContent() {
       }
     }
     fetchProducts();
-  }, [category, sort, page, searchQuery]);
+  }, [selectedCategory, sort, page, searchQuery]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
@@ -88,20 +110,20 @@ function BoutiqueContent() {
       <AnimateOnScroll direction="up" delay={0.2}>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {FILTER_CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
-              key={cat}
+              key={cat._id}
               onClick={() => {
-                setCategory(cat);
+                setSelectedCategory(cat._id === "tous" ? "" : cat._id);
                 setPage(1);
               }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                category === cat
-                  ? "bg-[#00BCD4] text-white"
+              className={`rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 ${
+                (cat._id === "tous" && !selectedCategory) || selectedCategory === cat._id
+                  ? "bg-[#111] text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {cat}
+              {cat.name}
             </button>
           ))}
         </div>
